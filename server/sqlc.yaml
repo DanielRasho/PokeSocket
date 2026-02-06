@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "./db/"
+    schema: "../db/game/schema.sql"
+    gen:
+      go:
+        package: "users_db"
+        sql_package: "pgx/v5"
+        out: "./internal/storage/postgres_cli/game_db"
