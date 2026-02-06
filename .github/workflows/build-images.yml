@@ -45,8 +45,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context }}
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm64/v8
+          file: ${{ matrix.service.context }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ matrix.service.image }}:latest
