@@ -38,6 +38,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: name
+        run: ls -la ${{matrix.service.context}}
+          
       - name: Build & push ${{ matrix.service.name }}
         uses: docker/build-push-action@v6
         with:
