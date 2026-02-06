@@ -1,0 +1,10 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    image: vue-spa:latest
+    container_name: pokesocket-client
+    ports:
+      - "8080:80"
+    restart: unless-stopped
