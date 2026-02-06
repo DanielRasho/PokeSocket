@@ -19,7 +19,7 @@ jobs:
             context: ./server
             image: smaugthur/pokesocket-server
           - name: db
-            context: ./db
+            context: ./db/game
             image: smaugthur/pokesocket-db
 
     steps:
