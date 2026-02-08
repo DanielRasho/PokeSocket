@@ -2,71 +2,78 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
-	"time"
 
-	"github.com/coder/websocket"
+	"github.com/DanielRasho/PokeSocket/internal/config"
+	"github.com/DanielRasho/PokeSocket/internal/handlers/http_h"
+	"github.com/DanielRasho/PokeSocket/internal/handlers/ws_h"
+	poke_mw "github.com/DanielRasho/PokeSocket/internal/middlewares"
+	"github.com/DanielRasho/PokeSocket/internal/storage/postgres_cli"
+	"github.com/DanielRasho/PokeSocket/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	r := chi.NewRouter()
 
-	// Basic middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	// Load config
+	godotenv.Load()
+	apiPort := config.LoadRunningModeConfig()
+	DBConfig := config.LoadDBConfig()
+	loggingConfig := config.LoadLoggingConfig()
+	corsConfig := config.LoadCorsConfig()
 
-	// Simple HTTP endpoint
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
-	})
+	// Config logger
+	utils.ConfigureLogger(&loggingConfig)
 
-	// WebSocket endpoint
-	r.Get("/ws", wsHandler)
+	ctx := context.Background()
 
-	log.Println("HTTP  : http://localhost:8080/health")
-	log.Println("WS    : ws://localhost:8080/ws")
-
-	log.Println("Running on por 8080")
-	http.ListenAndServe(":8080", r)
-}
-
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	// Accept WebSocket connection
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// ⚠️ allow all origins for development
-		OriginPatterns: []string{"*"},
-	})
+	// Start DB Connection
+	DBCli, err := postgres_cli.NewPGClient(ctx, DBConfig)
 	if err != nil {
-		log.Println("accept error:", err)
+		log.Fatal().Err(err).Msg("Failed to initialize UMS Postgres client")
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "bye")
+	defer DBCli.Close()
 
-	log.Println("WebSocket client connected")
+	// ROUTER
+	r := chi.NewRouter()
 
-	ctx := r.Context()
+	// MIDDLEWARES
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(poke_mw.CreateCors(&corsConfig))
 
-	for {
-		// Read message
-		msgType, data, err := conn.Read(ctx)
-		if err != nil {
-			log.Println("read error:", err)
-			break
-		}
+	// ROUTES
+	api := newAPI(DBCli)
+	r.Get("/health", api.checkHealth)
+	r.Get("/pokemon", api.checkHealth)
+	r.Get("/battle/stats", api.checkHealth)
+	r.Get("/battle", api.battle)
 
-		log.Printf("received: %s\n", data)
+	// Start server
+	log.Printf("Running on http %s", apiPort)
+	log.Fatal().Err(http.ListenAndServe(":"+apiPort, r))
+}
 
-		// Echo message back
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		err = conn.Write(ctx, msgType, data)
-		cancel()
+type api struct {
+	// HTTTP
+	checkHealth http.HandlerFunc
+	getPokemons http.HandlerFunc
+	getStats    http.HandlerFunc
 
-		if err != nil {
-			log.Println("write error:", err)
-			break
-		}
+	// WS
+	battle http.HandlerFunc
+}
+
+func newAPI(dbCli *pgxpool.Pool) api {
+	validator := validator.New()
+	return api{
+		checkHealth: http_h.GetHealth,
+		battle:      ws_h.NewHandler(dbCli, validator),
 	}
 }

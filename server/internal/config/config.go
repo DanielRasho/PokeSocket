@@ -8,11 +8,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type RunningModeConfig struct {
-	RunningMode string
-	ApiPort     string
-}
-
 type LoggingConfig struct {
 	LoggingLevel string
 	PrettyLogs   string
@@ -25,18 +20,12 @@ type CorsConfig struct {
 	AllowedHeaders      []string
 }
 
-// LoadConfig loads configuration from environment variables.
-// It exits with a fatal error if any required variable is missing.
-
-func LoadRunningModeConfig() RunningModeConfig {
-	return RunningModeConfig{
-		ApiPort:     mustGetEnv("API_PORT"),
-		RunningMode: mustGetEnv("RUNNING_MODE"),
-	}
+func LoadRunningModeConfig() string {
+	return mustGetEnv("API_PORT")
 }
 
-func LoadUsersDBConfig() string {
-	return mustGetEnv("USERS_DB_URI")
+func LoadDBConfig() string {
+	return mustGetEnv("DB_URI")
 }
 
 func LoadLoggingConfig() LoggingConfig {
@@ -53,18 +42,6 @@ func LoadCorsConfig() CorsConfig {
 		AllowedMethods:      mustGetEnvAsStringSlice("ALLOWED_METHODS"),
 		AllowedHeaders:      mustGetEnvAsStringSlice("ALLOWED_HEADERS"),
 	}
-}
-
-func GetSystemID() int {
-	return mustGetEnvAsInt("SYSTEM_ID")
-}
-
-func GetJWTSecret() string {
-	return mustGetEnv("JWT_SECRET")
-}
-
-func GetRunningMode() string {
-	return mustGetEnvAsEnum("RUNNING_MODE", []string{"dev", "testing", "prod"})
 }
 
 // mustGetEnv retrieves the value of the given environment variable

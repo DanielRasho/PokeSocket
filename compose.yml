@@ -1,0 +1,44 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    image: pokesocket-client:latest
+    container_name: pokesocket-client
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - app-network
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: pokesocket-server:latest
+    container_name: pokesocket-server
+    ports:
+      - "3003:8080"
+    restart: unless-stopped
+    networks:
+      - app-network
+  db:
+    build:
+      context: ./db/game
+      dockerfile: Dockerfile
+    image: postgres-cron:17
+    container_name: pokesocket-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+networks:
+  app-network:
+
+volumes:
+  postgres_data:

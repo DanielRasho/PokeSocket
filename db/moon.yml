@@ -1,5 +1,5 @@
 tasks:
   dev:
     script: | 
-      cd ../infra && ls -la && docker compose -f app.yaml up --build db
+      cd ../ && docker compose up --build db
     
