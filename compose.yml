@@ -1,31 +1,39 @@
 services:
+  wud:
+    image: getwud/wud
+    container_name: wud
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "3004:3000"
+
   client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    image: pokesocket-client:latest
+    image: smaugtur/pokesocket-client:latest
     container_name: pokesocket-client
     ports:
       - "8080:80"
     restart: unless-stopped
     networks:
-      - app-network
+      - vpc
+    labels:
+      - "wud.watch=true"
+      - "wud.display.name=PokeSocket Client"
+
   server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    image: pokesocket-server:latest
+    image: smaugtur/pokesocket-server:latest
     container_name: pokesocket-server
     ports:
-      - "3003:8080"
+      - "8081:8080"
     restart: unless-stopped
     networks:
-      - app-network
+      - vpc
+    labels:
+      - "wud.watch=true"
+      - "wud.display.name=PokeSocket Server"
+
   db:
-    build:
-      context: ./db/game
-      dockerfile: Dockerfile
-    image: postgres-cron:17
+    image: smaugtur/pokesocket-db:latest
     container_name: pokesocket-db
     ports:
       - "5432:5432"
@@ -36,9 +44,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - vpc
+    labels:
+      - "wud.watch=false"
 
 networks:
-  app-network:
+  vpc:
+    external: true
 
 volumes:
   postgres_data:
