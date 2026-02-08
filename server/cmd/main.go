@@ -29,6 +29,7 @@ func main() {
 	log.Println("HTTP  : http://localhost:8080/health")
 	log.Println("WS    : ws://localhost:8080/ws")
 
+	log.Println("Running on por 8080")
 	http.ListenAndServe(":8080", r)
 }
 
