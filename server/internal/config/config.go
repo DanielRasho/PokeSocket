@@ -63,10 +63,6 @@ func GetJWTSecret() string {
 	return mustGetEnv("JWT_SECRET")
 }
 
-func GetGameJWTSecret() string {
-	return mustGetEnv("GAME_JWT_SECRET")
-}
-
 func GetRunningMode() string {
 	return mustGetEnvAsEnum("RUNNING_MODE", []string{"dev", "testing", "prod"})
 }
