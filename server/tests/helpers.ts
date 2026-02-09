@@ -22,6 +22,8 @@ export const SERVER_MESSAGE_TYPE = {
   BattleEnded: 54,
   Disconnect: 55,
   Error: 56,
+  MatchFound: 57,
+  QueueJoined: 58,
 } as const;
 
 export interface Message<T = any> {
@@ -43,6 +45,20 @@ export const CONNECT_REQUEST = (username: string, pokemons: number[]) => {
 export const CONNECT_SCHEMA = object().shape({
   id: string().uuid().required(),
   username: string().required(),
+});
+
+export const MATCH_REQUEST = () => {
+  return createMessage(CLIENT_MESSAGE_TYPE.Match, {});
+};
+
+export const MATCH_FOUND_SCHEMA = object().shape({
+  opponent_id: string().uuid().required(),
+  opponent_username: string().required(),
+});
+
+export const QUEUE_JOINED_SCHEMA = object().shape({
+  message: string().required(),
+  queue_size: number().required(),
 });
 
 

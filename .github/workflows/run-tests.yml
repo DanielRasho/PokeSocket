@@ -14,9 +14,6 @@ concurrency:
 
 jobs:
   lintingAndTesting:
-    strategy:
-      matrix:
-        index: [0, 1]
     name: Backend checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -39,9 +36,12 @@ jobs:
           purge: true
           # purge all versions of the cache
           purge-prefixes: build-${{ runner.os }}-
+          
+      - name: Setup node
+        run: nix develop -c moon run server:setup
 
       - name: Testing
-        run: nix develop -c process-compose up -f process-compose.yaml
+        run: nix develop -c process-compose up -f process-compose.yaml -t=false
 
       - name: Pretty moon logs
         uses: appthrust/moon-ci-retrospect@v1
