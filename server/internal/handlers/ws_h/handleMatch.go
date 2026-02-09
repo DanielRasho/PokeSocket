@@ -14,9 +14,10 @@ type PokemonInfo struct {
 }
 
 type PlayerBattleInfo struct {
-	PlayerID string        `json:"player_id"`
-	Username string        `json:"username"`
-	Team     []PokemonInfo `json:"team"`
+	PlayerID      string        `json:"player_id"`
+	Username      string        `json:"username"`
+	Team          []PokemonInfo `json:"team"`
+	ActivePokemon int32         `json:"active_pokemon"`
 }
 
 type MatchFoundResponse struct {
@@ -84,28 +85,32 @@ func (h *Handler) handleMatch(conn *Connection) {
 		conn.Send <- NewMessage(SERVER_MESSAGE_TYPE.MatchFound, MatchFoundResponse{
 			BattleID: battleInfo.BattleID.String(),
 			YourInfo: PlayerBattleInfo{
-				PlayerID: conn.PlayerID.String(),
-				Username: conn.Username,
-				Team:     player2Team,
+				PlayerID:      conn.PlayerID.String(),
+				Username:      conn.Username,
+				Team:          player2Team,
+				ActivePokemon: 1,
 			},
 			OpponentInfo: PlayerBattleInfo{
-				PlayerID: opponent.PlayerID.String(),
-				Username: opponent.Username,
-				Team:     player1Team,
+				PlayerID:      opponent.PlayerID.String(),
+				Username:      opponent.Username,
+				Team:          player1Team,
+				ActivePokemon: 1,
 			},
 		})
 
 		err = h.SendToPlayer(opponent.PlayerID, NewMessage(SERVER_MESSAGE_TYPE.MatchFound, MatchFoundResponse{
 			BattleID: battleInfo.BattleID.String(),
 			YourInfo: PlayerBattleInfo{
-				PlayerID: opponent.PlayerID.String(),
-				Username: opponent.Username,
-				Team:     player1Team,
+				PlayerID:      opponent.PlayerID.String(),
+				Username:      opponent.Username,
+				Team:          player1Team,
+				ActivePokemon: 1,
 			},
 			OpponentInfo: PlayerBattleInfo{
-				PlayerID: conn.PlayerID.String(),
-				Username: conn.Username,
-				Team:     player2Team,
+				PlayerID:      conn.PlayerID.String(),
+				Username:      conn.Username,
+				Team:          player2Team,
+				ActivePokemon: 1,
 			},
 		}))
 

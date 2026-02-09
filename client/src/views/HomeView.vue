@@ -67,17 +67,16 @@
             >
               <span v-if="!loading">Register</span>
               <span v-else class="inline-flex items-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+                <span
+                  class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                ></span>
                 Registering...
               </span>
             </button>
 
             <div class="text-sm text-zinc-400">
               Status:
-              <span
-                class="ml-1 rounded-lg px-2 py-1 text-xs font-medium"
-                :class="statusPillClass"
-              >
+              <span class="ml-1 rounded-lg px-2 py-1 text-xs font-medium" :class="statusPillClass">
                 {{ ws.status }}
               </span>
             </div>
@@ -103,13 +102,16 @@
 
       <!-- Match found -->
       <div
-        v-if="ws.match"
+        v-if="ws.battleId && ws.battle"
         class="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5"
       >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-lg font-semibold">Match found!</h2>
-            <p class="text-sm text-zinc-400">You can move to the battle view.</p>
+            <p class="text-sm text-zinc-400">
+              battle_id:
+              <code class="rounded bg-zinc-950 px-2 py-1 text-zinc-200">{{ ws.battleId }}</code>
+            </p>
           </div>
           <button
             @click="goBattle"
@@ -121,7 +123,8 @@
 
         <pre
           class="mt-4 max-h-64 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-200"
-        >{{ pretty(ws.match) }}</pre>
+          >{{ pretty(ws.battle) }}</pre
+        >
       </div>
 
       <!-- Last messages -->
@@ -134,65 +137,76 @@
 
         <pre
           class="mt-4 max-h-64 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-200"
-        >{{ lastMessages }}</pre>
+          >{{ lastMessages }}</pre
+        >
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
-import { useWsStore } from "../stores/wsStore";
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useWsStore } from '../stores/wsStore'
 
-const ws = useWsStore();
-const router = useRouter();
+const ws = useWsStore()
+const router = useRouter()
 
-const username = ref("");
-const pokemon1 = ref(1);
-const pokemon2 = ref(2);
-const pokemon3 = ref(3);
+const username = ref('')
+const pokemon1 = ref(1)
+const pokemon2 = ref(2)
+const pokemon3 = ref(3)
 
-const loading = ref(false);
-const error = ref("");
+const loading = ref(false)
+const error = ref('')
 
-const wsUrlShown = computed(() => import.meta.env.VITE_WS_URL || "ws://localhost:3003");
+const wsUrlShown = computed(() => import.meta.env.VITE_WS_URL || 'ws://localhost:3003')
 
-const pokemonList = computed(() => [pokemon1.value, pokemon2.value, pokemon3.value]);
+const pokemonList = computed(() => [pokemon1.value, pokemon2.value, pokemon3.value])
 
 const pokemonError = computed(() => {
-  const arr = pokemonList.value;
+  const arr = pokemonList.value
 
-  if (!arr.every((n) => Number.isInteger(n))) return "All Pokémon IDs must be integers.";
-  if (!arr.every((n) => n > 0)) return "Pokémon IDs must be positive numbers.";
+  if (!arr.every((n) => Number.isInteger(n))) return 'All Pokémon IDs must be integers.'
+  if (!arr.every((n) => n > 0)) return 'Pokémon IDs must be positive numbers.'
 
   // Optional: prevent duplicates
-  const uniq = new Set(arr);
-  if (uniq.size !== 3) return "Pick 3 different Pokémon IDs (no duplicates).";
+  const uniq = new Set(arr)
+  if (uniq.size !== 3) return 'Pick 3 different Pokémon IDs (no duplicates).'
 
-  return "";
-});
+  return ''
+})
 
-const canRegister = computed(() => username.value.trim().length > 0 && pokemonError.value === "");
+const canRegister = computed(() => username.value.trim().length > 0 && pokemonError.value === '')
 
 watch([username, pokemon1, pokemon2, pokemon3], () => {
-  error.value = "";
-});
+  error.value = ''
+})
+
+watch(
+  () => ws.battleId,
+  (id) => {
+    if (id && router.currentRoute.value.name !== "battle") {
+      router.push({ name: "battle" });
+    }
+  },
+  { immediate: true }
+);
 
 const statusPillClass = computed(() => {
   switch (ws.status) {
-    case "open":
-      return "bg-emerald-500/15 text-emerald-200 border border-emerald-500/30";
-    case "connecting":
-      return "bg-amber-500/15 text-amber-200 border border-amber-500/30";
-    case "error":
-      return "bg-rose-500/15 text-rose-200 border border-rose-500/30";
-    case "closed":
-      return "bg-zinc-800 text-zinc-200 border border-zinc-700";
+    case 'open':
+      return 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/30'
+    case 'connecting':
+      return 'bg-amber-500/15 text-amber-200 border border-amber-500/30'
+    case 'error':
+      return 'bg-rose-500/15 text-rose-200 border border-rose-500/30'
+    case 'closed':
+      return 'bg-zinc-800 text-zinc-200 border border-zinc-700'
     default:
-      return "bg-zinc-800 text-zinc-200 border border-zinc-700";
+      return 'bg-zinc-800 text-zinc-200 border border-zinc-700'
   }
-});
+})
 
 async function onRegister() {
   if (!canRegister.value) return;
@@ -200,9 +214,13 @@ async function onRegister() {
   loading.value = true;
   error.value = "";
 
+  // clear old battle so the watcher doesn't immediately redirect
+  ws.battleId = null;
+  ws.battle = null;
+
   try {
     await ws.connectAndAccept(username.value.trim(), pokemonList.value);
-    ws.joinQueue()
+    ws.joinQueue();
   } catch (e) {
     error.value = e?.message || "Failed to register.";
   } finally {
@@ -211,19 +229,19 @@ async function onRegister() {
 }
 
 function goBattle() {
-  router.push({ name: "battle" });
+  router.push({ name: 'battle' })
 }
 
 function pretty(obj) {
   try {
-    return JSON.stringify(obj, null, 2);
+    return JSON.stringify(obj, null, 2)
   } catch {
-    return String(obj);
+    return String(obj)
   }
 }
 
 const lastMessages = computed(() => {
-  const msgs = ws.messages || [];
-  return JSON.stringify(msgs.slice(-5), null, 2);
-});
+  const msgs = ws.messages || []
+  return JSON.stringify(msgs.slice(-5), null, 2)
+})
 </script>
