@@ -1,5 +1,11 @@
 tasks:
   dev:
     command: 'air'
+    local: true
+    options:
+      persistent: true
+
   test:
     command: 'pnpm vitest run --no-color --bail=1'
+  setup:
+    command: 'pnpm install'

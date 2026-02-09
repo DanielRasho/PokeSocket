@@ -1,3 +1,6 @@
 tasks:
   dev:
     command: 'pnpm dev'
+
+  setup:
+    command: 'pnpm install'

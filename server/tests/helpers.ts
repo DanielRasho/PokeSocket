@@ -2,7 +2,7 @@ import axios from 'axios';
 import WebSocket from 'ws';
 import { number, object, string } from 'yup';
 
-export const WS_URL = 'ws://localhost:8080/battle';
+export const WS_URL = 'ws://localhost:3003/battle';
 
 // Message types matching your Go server
 export const CLIENT_MESSAGE_TYPE = {

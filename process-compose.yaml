@@ -1,0 +1,24 @@
+version: "0.5"
+
+# THIS FILE IS USED TO RUN TESTS ON CI
+processes:
+  db:
+    command: moon run db:dev
+    ready_log_line: database system is ready to accept connections
+    shutdown:
+      command: "docker compose down -v"
+
+  server:
+    command: moon run server:dev
+    ready_log_line: Running on http
+    depends_on:
+      db:
+        condition: process_log_ready
+
+  test:
+    command: moon run server:test
+    depends_on:
+      server:
+        condition: process_log_ready
+    availability:
+      exit_on_end: false
