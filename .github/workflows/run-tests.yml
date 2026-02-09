@@ -41,7 +41,7 @@ jobs:
           purge-prefixes: build-${{ runner.os }}-
 
       - name: Testing
-        run: nix develop -c process-compose up -f process-compose.yaml
+        run: nix develop -c process-compose up -f process-compose.yaml -t=false
 
       - name: Pretty moon logs
         uses: appthrust/moon-ci-retrospect@v1
