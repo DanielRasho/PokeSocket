@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DanielRasho/PokeSocket/internal/services/battle_s"
 	"github.com/DanielRasho/PokeSocket/internal/services/matchmaking_s"
 	"github.com/DanielRasho/PokeSocket/internal/services/users_s"
 	"github.com/DanielRasho/PokeSocket/utils"
@@ -33,19 +34,22 @@ type Handler struct {
 	mu                 sync.RWMutex // Protect concurrent access to Connections map
 	UserService        *users_s.UserService
 	MatchmakingService *matchmaking_s.MatchmakingService
+	BattleService      *battle_s.BattleService
 }
 
 func NewHandler(
 	dbClient *pgxpool.Pool,
 	validator *validator.Validate,
 	userService *users_s.UserService,
-	matchmakingService *matchmaking_s.MatchmakingService) http.HandlerFunc {
+	matchmakingService *matchmaking_s.MatchmakingService,
+	battleService *battle_s.BattleService) http.HandlerFunc {
 	h := Handler{
 		DBClient:           dbClient,
 		Validator:          *validator,
 		Connections:        make(map[pgtype.UUID]*Connection),
 		UserService:        userService,
 		MatchmakingService: matchmakingService,
+		BattleService:      battleService,
 	}
 	return h.HandleRequest
 }
@@ -131,7 +135,7 @@ func (h *Handler) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	var initialMsg Message
 	err = wsjson.Read(ctx, conn, &initialMsg)
 	if err != nil {
-		sendAndLogError(ctx, conn, fmt.Errorf("Failed to read initial message"), initialMsg, utils.InvalidFields,
+		sendAndLogError(ctx, conn, fmt.Errorf("Failed to read initial message %w", err), initialMsg, utils.InvalidFields,
 			map[string]string{"type": "Invalid request fields"})
 		return
 	}
@@ -200,11 +204,11 @@ func (h *Handler) processMessages(conn *Connection) {
 
 		case CLIENT_MESSAGE_TYPE.Attack:
 			log.Debug().Str("username", conn.Username).Msg("Attack received")
-			// TODO: Handle attack
+			h.handleAttack(conn, msg)
 
 		case CLIENT_MESSAGE_TYPE.ChangePokemon:
 			log.Debug().Str("username", conn.Username).Msg("Change Pokemon received")
-			// TODO: Handle pokemon change
+			h.handleChangePokemon(conn, msg)
 
 		case CLIENT_MESSAGE_TYPE.Surrender:
 			log.Debug().Str("username", conn.Username).Msg("Surrender received")

@@ -8,6 +8,7 @@ import (
 	"github.com/DanielRasho/PokeSocket/internal/handlers/http_h"
 	"github.com/DanielRasho/PokeSocket/internal/handlers/ws_h"
 	poke_mw "github.com/DanielRasho/PokeSocket/internal/middlewares"
+	"github.com/DanielRasho/PokeSocket/internal/services/battle_s"
 	"github.com/DanielRasho/PokeSocket/internal/services/matchmaking_s"
 	"github.com/DanielRasho/PokeSocket/internal/services/users_s"
 	"github.com/DanielRasho/PokeSocket/internal/storage/postgres_cli"
@@ -85,8 +86,14 @@ func newAPI(dbCli *pgxpool.Pool) api {
 	// Create matchmaking service
 	matchmakingService := matchmaking_s.NewMatchmakingService()
 
+	// Create battle service
+	battleService := battle_s.BattleService{
+		DBClient:  dbCli,
+		DBQueries: DbQueries,
+	}
+
 	return api{
 		checkHealth: http_h.GetHealth,
-		battle:      ws_h.NewHandler(dbCli, validator, &userService, matchmakingService),
+		battle:      ws_h.NewHandler(dbCli, validator, &userService, matchmakingService, &battleService),
 	}
 }
