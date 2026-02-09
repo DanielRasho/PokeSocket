@@ -38,17 +38,33 @@ export const useWsStore = defineStore("ws", {
 
     accepted: false,
     queueJoined: false,
-    match: null,
-    battle: null,
+
+    // battle state
+    battleId: null, // string
+    battle: null, // object (match found payload or status payload)
+    battleEnded: false,
+
+    // logs panel
+    logs: [], // string[]
 
     lastServerMessage: null,
     messages: [],
   }),
 
   actions: {
+    addLog(line) {
+      const ts = new Date().toLocaleTimeString();
+      this.logs.push(`[${ts}] ${line}`);
+      if (this.logs.length > 200) this.logs.shift();
+    },
+
     connect() {
       const existing = getSocket();
-      if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+      if (
+        existing &&
+        (existing.readyState === WebSocket.OPEN ||
+          existing.readyState === WebSocket.CONNECTING)
+      ) {
         return existing;
       }
 
@@ -78,41 +94,65 @@ export const useWsStore = defineStore("ws", {
         try {
           msg = JSON.parse(event.data);
         } catch {
-          // if server sends non-json, keep raw
+          // if server ever sends plain text, keep it as-is
         }
 
         this.lastServerMessage = msg;
         this.messages.push(msg);
 
-        // Route by numeric type
         switch (msg?.type) {
           case SERVER_MESSAGE_TYPE.AcceptConnection:
             this.accepted = true;
+            this.addLog("Connected (AcceptConnection).");
             break;
 
           case SERVER_MESSAGE_TYPE.QueueJoined:
             this.queueJoined = true;
+            this.addLog("Joined matchmaking queue.");
             break;
 
           case SERVER_MESSAGE_TYPE.MatchFound:
-            this.match = msg.payload;
+            // payload has battle_id + player info
+            this.battleId = msg.payload?.battle_id ?? null;
+            this.battle = msg.payload;
+            this.addLog(`Match found. battle_id=${this.battleId}`);
             break;
 
           case SERVER_MESSAGE_TYPE.Status:
+            // server battle updates
             this.battle = msg.payload;
+            // if status payload also has battle_id, keep it synced
+            if (msg.payload?.battle_id) this.battleId = msg.payload.battle_id;
+            this.addLog("Battle status update received.");
+            break;
+
+          case SERVER_MESSAGE_TYPE.Attack:
+            this.battle = msg.payload;
+            this.addLog(`Attack: ${msg.payload?.message || safeString(msg.payload)}`);
+            break;
+
+          case SERVER_MESSAGE_TYPE.ChangePokemon:
+            this.battle = msg.payload;
+            this.addLog(`Change: ${msg.payload?.message || safeString(msg.payload)}`);
             break;
 
           case SERVER_MESSAGE_TYPE.BattleEnded:
-            // optional: store end info
-            // this.battleEnded = msg.payload;
+            this.battle = msg.payload;
+            this.battleEnded = true;
+            this.addLog(`Battle ended! Winner: ${msg.payload?.winner || "unknown"}`);
+            break;
+
+          case SERVER_MESSAGE_TYPE.Disconnect:
+            this.addLog("Server disconnected you.");
             break;
 
           case SERVER_MESSAGE_TYPE.Error:
-            // optional: store server error payload
-            // this.serverError = msg.payload;
+            this.addLog(`Server error: ${safeString(msg.payload)}`);
             break;
 
           default:
+            // Uncomment if you want to log every unknown message:
+            // this.addLog(`Server msg type=${msg?.type}: ${safeString(msg?.payload)}`);
             break;
         }
       };
@@ -124,6 +164,7 @@ export const useWsStore = defineStore("ws", {
       const ws = getSocket();
       if (ws) ws.close();
       setSocket(null);
+
       this.status = "closed";
       this.accepted = false;
       this.queueJoined = false;
@@ -176,7 +217,9 @@ export const useWsStore = defineStore("ws", {
 
         const t = setTimeout(() => {
           cleanup();
-          reject(new Error(`Timed out waiting for server message type ${expectedType}`));
+          reject(
+            new Error(`Timed out waiting for server message type ${expectedType}`)
+          );
         }, timeoutMs);
 
         const onMessage = (event) => {
@@ -202,8 +245,6 @@ export const useWsStore = defineStore("ws", {
       });
     },
 
-    // Matches your integration test exactly:
-    // connect -> send Connect(1) -> wait for AcceptConnection(50)
     async connectAndAccept(username, pokemons) {
       this.username = username;
       this.pokemons = pokemons;
@@ -212,32 +253,61 @@ export const useWsStore = defineStore("ws", {
 
       this.sendMessage(CLIENT_MESSAGE_TYPE.Connect, { username, pokemons });
 
-      const accept = await this.waitForServerType(SERVER_MESSAGE_TYPE.AcceptConnection, 3000);
+      const accept = await this.waitForServerType(
+        SERVER_MESSAGE_TYPE.AcceptConnection,
+        3000
+      );
       this.accepted = true;
 
       return accept;
     },
 
-    // Optional: if your server requires you to explicitly join matchmaking queue:
     joinQueue() {
       this.sendMessage(CLIENT_MESSAGE_TYPE.Match, {});
+      this.addLog("Sent Match (join queue) request.");
     },
 
-    // Battle actions
-    attack(moveIndex) {
-      this.sendMessage(CLIENT_MESSAGE_TYPE.Attack, { moveIndex });
+    // Actions that include battle_id (since your server needs it)
+    attack(moveId = 1) {
+      if (!this.battleId) throw new Error("No battleId yet");
+      this.sendMessage(CLIENT_MESSAGE_TYPE.Attack, {
+        battle_id: this.battleId,
+        move_id: moveId,
+      });
+      this.addLog(`You attacked (move_id=${moveId}).`);
     },
 
-    changePokemon(pokemonIndex) {
-      this.sendMessage(CLIENT_MESSAGE_TYPE.ChangePokemon, { pokemonIndex });
+    changePokemon(position = 2) {
+      if (!this.battleId) throw new Error("No battleId yet");
+      this.sendMessage(CLIENT_MESSAGE_TYPE.ChangePokemon, {
+        battle_id: this.battleId,
+        position,
+      });
+      this.addLog(`You changed Pokémon (position=${position}).`);
     },
 
     surrender() {
-      this.sendMessage(CLIENT_MESSAGE_TYPE.Surrender, {});
+      if (!this.battleId) throw new Error("No battleId yet");
+      this.sendMessage(CLIENT_MESSAGE_TYPE.Surrender, {
+        battle_id: this.battleId,
+      });
+      this.addLog("You surrendered.");
     },
 
     requestStatus() {
-      this.sendMessage(CLIENT_MESSAGE_TYPE.Status, {});
+      if (!this.battleId) throw new Error("No battleId yet");
+      this.sendMessage(CLIENT_MESSAGE_TYPE.Status, {
+        battle_id: this.battleId,
+      });
+      this.addLog("Requested battle status.");
     },
   },
 });
+
+function safeString(v) {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
