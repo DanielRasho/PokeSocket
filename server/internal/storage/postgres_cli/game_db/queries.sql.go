@@ -11,8 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createBattle = `-- name: CreateBattle :one
+INSERT INTO battles (id, player1_id, player2_id, status, player1_active_pokemon_position, player2_active_pokemon_position)
+VALUES ($1, $2, $3, 'active', 1, 1)
+RETURNING id, player1_id, player2_id, status, started_at
+`
+
+type CreateBattleParams struct {
+	ID        pgtype.UUID
+	Player1ID pgtype.UUID
+	Player2ID pgtype.UUID
+}
+
+type CreateBattleRow struct {
+	ID        pgtype.UUID
+	Player1ID pgtype.UUID
+	Player2ID pgtype.UUID
+	Status    pgtype.Text
+	StartedAt pgtype.Timestamp
+}
+
+func (q *Queries) CreateBattle(ctx context.Context, arg CreateBattleParams) (CreateBattleRow, error) {
+	row := q.db.QueryRow(ctx, createBattle, arg.ID, arg.Player1ID, arg.Player2ID)
+	var i CreateBattleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Player1ID,
+		&i.Player2ID,
+		&i.Status,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const deleteBattle = `-- name: DeleteBattle :exec
+DELETE FROM battles
+WHERE id = $1
+`
+
+func (q *Queries) DeleteBattle(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteBattle, id)
+	return err
+}
+
 const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users 
+DELETE FROM users
 WHERE id = $1
 `
 
@@ -21,15 +64,198 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getBattle = `-- name: GetBattle :one
+SELECT id, player1_id, player2_id, status, current_turn, player1_active_pokemon_position, player2_active_pokemon_position
+FROM battles
+WHERE id = $1
+`
+
+type GetBattleRow struct {
+	ID                           pgtype.UUID
+	Player1ID                    pgtype.UUID
+	Player2ID                    pgtype.UUID
+	Status                       pgtype.Text
+	CurrentTurn                  pgtype.Int4
+	Player1ActivePokemonPosition pgtype.Int4
+	Player2ActivePokemonPosition pgtype.Int4
+}
+
+func (q *Queries) GetBattle(ctx context.Context, id pgtype.UUID) (GetBattleRow, error) {
+	row := q.db.QueryRow(ctx, getBattle, id)
+	var i GetBattleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Player1ID,
+		&i.Player2ID,
+		&i.Status,
+		&i.CurrentTurn,
+		&i.Player1ActivePokemonPosition,
+		&i.Player2ActivePokemonPosition,
+	)
+	return i, err
+}
+
+const getPokemonSpecies = `-- name: GetPokemonSpecies :one
+SELECT id, name, base_hp, base_attack, base_defense, base_speed, type1, type2
+FROM pokemon_species
+WHERE id = $1
+`
+
+type GetPokemonSpeciesRow struct {
+	ID          int32
+	Name        string
+	BaseHp      int32
+	BaseAttack  int32
+	BaseDefense int32
+	BaseSpeed   int32
+	Type1       string
+	Type2       pgtype.Text
+}
+
+func (q *Queries) GetPokemonSpecies(ctx context.Context, id int32) (GetPokemonSpeciesRow, error) {
+	row := q.db.QueryRow(ctx, getPokemonSpecies, id)
+	var i GetPokemonSpeciesRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.BaseHp,
+		&i.BaseAttack,
+		&i.BaseDefense,
+		&i.BaseSpeed,
+		&i.Type1,
+		&i.Type2,
+	)
+	return i, err
+}
+
+const getUserTeam = `-- name: GetUserTeam :many
+SELECT id, user_id, pokemon_species_id, position, current_hp, is_active, is_fainted
+FROM user_team
+WHERE user_id = $1
+ORDER BY position
+`
+
+func (q *Queries) GetUserTeam(ctx context.Context, userID pgtype.UUID) ([]UserTeam, error) {
+	rows, err := q.db.Query(ctx, getUserTeam, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserTeam
+	for rows.Next() {
+		var i UserTeam
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.PokemonSpeciesID,
+			&i.Position,
+			&i.CurrentHp,
+			&i.IsActive,
+			&i.IsFainted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertUser = `-- name: InsertUser :one
-INSERT INTO users (username)
-VALUES ($1)
+INSERT INTO users (id, username, status)
+VALUES ($1, $2, 'connected')
 RETURNING id
 `
 
-func (q *Queries) InsertUser(ctx context.Context, username string) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, insertUser, username)
+type InsertUserParams struct {
+	ID       pgtype.UUID
+	Username string
+}
+
+func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertUser, arg.ID, arg.Username)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertUserTeamPokemon = `-- name: InsertUserTeamPokemon :exec
+INSERT INTO user_team (user_id, pokemon_species_id, position, current_hp, is_active, is_fainted)
+SELECT $1, $2, $3, ps.base_hp, false, false
+FROM pokemon_species ps
+WHERE ps.id = $2
+`
+
+type InsertUserTeamPokemonParams struct {
+	UserID           pgtype.UUID
+	PokemonSpeciesID pgtype.Int4
+	Position         int32
+}
+
+func (q *Queries) InsertUserTeamPokemon(ctx context.Context, arg InsertUserTeamPokemonParams) error {
+	_, err := q.db.Exec(ctx, insertUserTeamPokemon, arg.UserID, arg.PokemonSpeciesID, arg.Position)
+	return err
+}
+
+const updateBattleTurn = `-- name: UpdateBattleTurn :exec
+UPDATE battles
+SET current_turn = current_turn + 1
+WHERE id = $1
+`
+
+func (q *Queries) UpdateBattleTurn(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, updateBattleTurn, id)
+	return err
+}
+
+const updatePlayer1ActivePokemon = `-- name: UpdatePlayer1ActivePokemon :exec
+UPDATE battles
+SET player1_active_pokemon_position = $1
+WHERE id = $2
+`
+
+type UpdatePlayer1ActivePokemonParams struct {
+	Player1ActivePokemonPosition pgtype.Int4
+	ID                           pgtype.UUID
+}
+
+func (q *Queries) UpdatePlayer1ActivePokemon(ctx context.Context, arg UpdatePlayer1ActivePokemonParams) error {
+	_, err := q.db.Exec(ctx, updatePlayer1ActivePokemon, arg.Player1ActivePokemonPosition, arg.ID)
+	return err
+}
+
+const updatePlayer2ActivePokemon = `-- name: UpdatePlayer2ActivePokemon :exec
+UPDATE battles
+SET player2_active_pokemon_position = $1
+WHERE id = $2
+`
+
+type UpdatePlayer2ActivePokemonParams struct {
+	Player2ActivePokemonPosition pgtype.Int4
+	ID                           pgtype.UUID
+}
+
+func (q *Queries) UpdatePlayer2ActivePokemon(ctx context.Context, arg UpdatePlayer2ActivePokemonParams) error {
+	_, err := q.db.Exec(ctx, updatePlayer2ActivePokemon, arg.Player2ActivePokemonPosition, arg.ID)
+	return err
+}
+
+const updatePokemonHP = `-- name: UpdatePokemonHP :exec
+UPDATE user_team
+SET current_hp = $1,
+    is_fainted = CASE WHEN $1 <= 0 THEN true ELSE is_fainted END
+WHERE user_id = $2 AND position = $3
+`
+
+type UpdatePokemonHPParams struct {
+	CurrentHp int32
+	UserID    pgtype.UUID
+	Position  int32
+}
+
+func (q *Queries) UpdatePokemonHP(ctx context.Context, arg UpdatePokemonHPParams) error {
+	_, err := q.db.Exec(ctx, updatePokemonHP, arg.CurrentHp, arg.UserID, arg.Position)
+	return err
 }

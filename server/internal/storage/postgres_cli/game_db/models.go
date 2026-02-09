@@ -21,16 +21,6 @@ type Battle struct {
 	EndedAt                      pgtype.Timestamp
 }
 
-type BattlePokemon struct {
-	ID               int32
-	BattleID         pgtype.UUID
-	UserID           pgtype.UUID
-	PokemonSpeciesID pgtype.Int4
-	Position         int32
-	CurrentHp        int32
-	IsFainted        pgtype.Bool
-}
-
 type BattleResult struct {
 	ID              int32
 	BattleID        pgtype.UUID
@@ -40,12 +30,6 @@ type BattleResult struct {
 	TotalTurns      pgtype.Int4
 	DurationSeconds pgtype.Int4
 	CompletedAt     pgtype.Timestamp
-}
-
-type MatchmakingQueue struct {
-	ID       int32
-	UserID   pgtype.UUID
-	JoinedAt pgtype.Timestamp
 }
 
 type Move struct {

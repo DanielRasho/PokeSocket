@@ -6,6 +6,6 @@ tasks:
       persistent: true
 
   test:
-    command: 'pnpm vitest run --no-color --bail=1'
+    command: 'pnpm vitest run --no-color --bail=1 --fileParallelism=false'
   setup:
     command: 'pnpm install'

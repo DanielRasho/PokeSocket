@@ -1,6 +1,6 @@
 import axios from 'axios';
 import WebSocket from 'ws';
-import { number, object, string } from 'yup';
+import { array, boolean, number, object, string } from 'yup';
 
 export const WS_URL = 'ws://localhost:3003/battle';
 
@@ -13,6 +13,33 @@ export const CLIENT_MESSAGE_TYPE = {
   Status: 5,
   Match: 6,
 } as const;
+
+export const ATTACK_RESPONSE_SCHEMA = object().shape({
+  battle_id: string().uuid().required(),
+  message: string().required(),
+  your_info: object().shape({
+    player_id: string().uuid().required(),
+    username: string().required(),
+    team: array().of(object().shape({
+      species_id: number().required(),
+      position: number().required(),
+      current_hp: number().required(),
+      is_fainted: boolean().required(),
+    })).required()
+  }).required(),
+  opponent_info: object().shape({
+    player_id: string().uuid().required(),
+    username: string().required(),
+    team: array().of(object().shape({
+      species_id: number().required(),
+      position: number().required(),
+      current_hp: number().required(),
+      is_fainted: boolean().required(),
+    })).required()
+  }).required(),
+  battle_ended: boolean().optional(),
+  winner: string().uuid().optional(),
+})
 
 export const SERVER_MESSAGE_TYPE = {
   AcceptConnection: 50,
@@ -52,13 +79,50 @@ export const MATCH_REQUEST = () => {
 };
 
 export const MATCH_FOUND_SCHEMA = object().shape({
-  opponent_id: string().uuid().required(),
-  opponent_username: string().required(),
+  battle_id: string().uuid().required(),
+  your_info: object().shape({
+    player_id: string().uuid().required(),
+    username: string().required(),
+    team: array().of(object().shape({
+      species_id: number().required(),
+      position: number().required(),
+      current_hp: number().required(),
+      is_fainted: boolean().required(),
+    })).required()
+  }).required(),
+  opponent_info: object().shape({
+    player_id: string().uuid().required(),
+    username: string().required(),
+    team: array().of(object().shape({
+      species_id: number().required(),
+      position: number().required(),
+      current_hp: number().required(),
+      is_fainted: boolean().required(),
+    })).required()
+  }).required()
 });
 
 export const QUEUE_JOINED_SCHEMA = object().shape({
   message: string().required(),
   queue_size: number().required(),
+});
+
+export const BATTLE_ENDED_SCHEMA = object().shape({
+  message: string().required(),
+  queue_size: number().required(),
+})
+
+export const ATTACK_REQUEST = (battleId: string, moveId: number) => {
+  return createMessage(CLIENT_MESSAGE_TYPE.Attack, {
+    battle_id: battleId,
+    move_id: moveId,
+  });
+};
+
+export const ERROR_SCHEMA = object().shape({
+  msg: string().required(),
+  code: number().required(),
+  details: object().required(),
 });
 
 

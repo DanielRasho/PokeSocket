@@ -1,4 +1,3 @@
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE pokemon_species (
@@ -55,17 +54,6 @@ CREATE TABLE user_team (
 );
 
 -- ============================================
--- MATCHMAKING
--- ============================================
-
--- Queue for matchmaking
-CREATE TABLE matchmaking_queue (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================
 -- BATTLES
 -- ============================================
 
@@ -98,19 +86,6 @@ CREATE TABLE battle_pokemon (
     UNIQUE(battle_id, user_id, position)
 );
 
--- Stores battle results/history
-CREATE TABLE battle_results (
-    id SERIAL PRIMARY KEY,
-    battle_id UUID REFERENCES battles(id) ON DELETE CASCADE UNIQUE,
-    winner_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    loser_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    end_reason VARCHAR(50), -- 'all_fainted', 'surrender', 'disconnect'
-    total_turns INTEGER,
-    duration_seconds INTEGER,
-    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_battles_status ON battles(status);
 CREATE INDEX idx_battles_players ON battles(player1_id, player2_id);
-CREATE INDEX idx_matchmaking_queue_joined ON matchmaking_queue(joined_at);

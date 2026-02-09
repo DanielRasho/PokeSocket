@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE pokemon_species (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -52,17 +54,6 @@ CREATE TABLE user_team (
 );
 
 -- ============================================
--- MATCHMAKING
--- ============================================
-
--- Queue for matchmaking
-CREATE TABLE matchmaking_queue (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- ============================================
 -- BATTLES
 -- ============================================
 
@@ -80,19 +71,6 @@ CREATE TABLE battles (
     ended_at TIMESTAMP,
     
     CHECK (player1_id != player2_id)
-);
-
--- Stores battle state for each player's team during battle
-CREATE TABLE battle_pokemon (
-    id SERIAL PRIMARY KEY,
-    battle_id UUID REFERENCES battles(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    pokemon_species_id INTEGER REFERENCES pokemon_species(id),
-    position INTEGER NOT NULL CHECK (position >= 1 AND position <= 6),
-    current_hp INTEGER NOT NULL,
-    is_fainted BOOLEAN DEFAULT FALSE,
-    
-    UNIQUE(battle_id, user_id, position)
 );
 
 -- Stores battle results/history

@@ -76,11 +76,20 @@ describe("Matchmaking System", () => {
     validateResponse(match1.payload, MATCH_FOUND_SCHEMA);
     validateResponse(match2.payload, MATCH_FOUND_SCHEMA);
 
-    // Player1 should receive Player2's info
-    expect(match1.payload.opponent_username).toBe("Player2");
+    // Verify battle IDs match
+    expect(match1.payload.battle_id).toBe(match2.payload.battle_id);
 
-    // Player2 should receive Player1's info
-    expect(match2.payload.opponent_username).toBe("Player1");
+    // Player1 should receive correct info
+    expect(match1.payload.your_info.username).toBe("Player1");
+    expect(match1.payload.opponent_info.username).toBe("Player2");
+    expect(match1.payload.your_info.team).toHaveLength(3);
+    expect(match1.payload.opponent_info.team).toHaveLength(3);
+
+    // Player2 should receive correct info
+    expect(match2.payload.your_info.username).toBe("Player2");
+    expect(match2.payload.opponent_info.username).toBe("Player1");
+    expect(match2.payload.your_info.team).toHaveLength(3);
+    expect(match2.payload.opponent_info.team).toHaveLength(3);
 
     await Promise.all([client1.close(), client2.close()]);
   });
@@ -124,8 +133,8 @@ describe("Matchmaking System", () => {
 
     expect(match1.type).toBe(SERVER_MESSAGE_TYPE.MatchFound);
     expect(match2.type).toBe(SERVER_MESSAGE_TYPE.MatchFound);
-    expect(match1.payload.opponent_username).toBe("Player2");
-    expect(match2.payload.opponent_username).toBe("Player1");
+    expect(match1.payload.opponent_info.username).toBe("Player2");
+    expect(match2.payload.opponent_info.username).toBe("Player1");
 
     // Player3 enters queue - should be alone in queue
     await client3.send(MATCH_REQUEST());

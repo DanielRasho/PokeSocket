@@ -39,10 +39,17 @@ func (h *Handler) handleConnect(msg Message, ctx context.Context, conn *websocke
 	}
 
 	userId := pgtype.UUID{Bytes: uuid.New(), Valid: true}
-	log.Debug().Str("Username", payload.Username).Str("Id", userId.String())
+	log.Debug().Str("Username", payload.Username).Str("Id", userId.String()).Msg("Creating user")
+
+	// CREATE USER AND TEAM IN DATABASE
+	err := h.UserService.CreateUserWithTeam(ctx, userId, payload.Username, payload.Pokemons)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create user and team")
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
 
 	// SEND SESSION DATA TO CLIENT.
-	err := wsjson.Write(ctx, conn, NewMessage(
+	err = wsjson.Write(ctx, conn, NewMessage(
 		SERVER_MESSAGE_TYPE.AcceptConnection,
 		ClientConnectResponse{
 			Username: payload.Username,
