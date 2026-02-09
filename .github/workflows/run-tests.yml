@@ -39,6 +39,9 @@ jobs:
           purge: true
           # purge all versions of the cache
           purge-prefixes: build-${{ runner.os }}-
+          
+      - name: Setup node
+        run: nix develop -c moon run server:setup
 
       - name: Testing
         run: nix develop -c process-compose up -f process-compose.yaml -t=false
