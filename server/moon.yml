@@ -1,3 +1,5 @@
 tasks:
   dev:
     command: 'air'
+  test:
+    command: 'pnpm vitest run --no-color --bail=1'

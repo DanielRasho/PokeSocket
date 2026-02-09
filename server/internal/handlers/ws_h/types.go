@@ -130,10 +130,7 @@ func (h *Handler) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add connection to map
 	h.AddConnection(connection)
-
-	// IMPORTANT: Remove connection when this function exits
 	defer h.RemoveConnection(connection.PlayerID)
 
 	// Start background goroutines

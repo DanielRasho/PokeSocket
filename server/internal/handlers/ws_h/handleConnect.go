@@ -20,7 +20,7 @@ type ClientConnectRequest struct {
 
 type ClientConnectResponse struct {
 	Username string      `json:"username"`
-	Id       pgtype.UUID `json:"uuid"`
+	Id       pgtype.UUID `json:"id"`
 }
 
 func (h *Handler) handleConnect(msg Message, ctx context.Context, conn *websocket.Conn) (*Connection, error) {
