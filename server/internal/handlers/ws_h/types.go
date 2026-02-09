@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DanielRasho/PokeSocket/internal/services/matchmaking_s"
 	"github.com/DanielRasho/PokeSocket/internal/services/users_s"
 	"github.com/DanielRasho/PokeSocket/utils"
 	"github.com/coder/websocket"
@@ -26,22 +27,25 @@ type Message struct {
 type PlayerID = pgtype.UUID
 
 type Handler struct {
-	DBClient    *pgxpool.Pool
-	Validator   validator.Validate
-	Connections map[PlayerID]*Connection
-	mu          sync.RWMutex // Protect concurrent access to Connections map
-	UserService *users_s.UserService
+	DBClient           *pgxpool.Pool
+	Validator          validator.Validate
+	Connections        map[PlayerID]*Connection
+	mu                 sync.RWMutex // Protect concurrent access to Connections map
+	UserService        *users_s.UserService
+	MatchmakingService *matchmaking_s.MatchmakingService
 }
 
 func NewHandler(
 	dbClient *pgxpool.Pool,
 	validator *validator.Validate,
-	userService *users_s.UserService) http.HandlerFunc {
+	userService *users_s.UserService,
+	matchmakingService *matchmaking_s.MatchmakingService) http.HandlerFunc {
 	h := Handler{
-		DBClient:    dbClient,
-		Validator:   *validator,
-		Connections: make(map[pgtype.UUID]*Connection),
-		UserService: userService,
+		DBClient:           dbClient,
+		Validator:          *validator,
+		Connections:        make(map[pgtype.UUID]*Connection),
+		UserService:        userService,
+		MatchmakingService: matchmakingService,
 	}
 	return h.HandleRequest
 }
@@ -63,6 +67,9 @@ func (h *Handler) RemoveConnection(playerID PlayerID) {
 	defer h.mu.Unlock()
 
 	if conn, exists := h.Connections[playerID]; exists {
+		// Remove from matchmaking queue if they were waiting
+		h.MatchmakingService.RemoveFromQueue(playerID)
+
 		conn.Close() // Properly close the connection
 		delete(h.Connections, playerID)
 		log.Debug().
@@ -175,6 +182,10 @@ func (h *Handler) processMessages(conn *Connection) {
 				"status":   "connected",
 				"username": conn.Username,
 			})
+
+		case CLIENT_MESSAGE_TYPE.Match:
+			log.Debug().Str("username", conn.Username).Msg("Match request received")
+			h.handleMatch(conn)
 
 		case CLIENT_MESSAGE_TYPE.Attack:
 			log.Debug().Str("username", conn.Username).Msg("Attack received")

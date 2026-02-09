@@ -34,6 +34,8 @@ var SERVER_MESSAGE_TYPE = struct {
 	BattleEnded      int
 	Disconnect       int
 	Error            int
+	MatchFound       int
+	QueueJoined      int
 }{
 	AcceptConnection: 50,
 	Attack:           51,
@@ -42,6 +44,8 @@ var SERVER_MESSAGE_TYPE = struct {
 	BattleEnded:      54,
 	Disconnect:       55,
 	Error:            56,
+	MatchFound:       57,
+	QueueJoined:      58,
 }
 
 // Helper function to create a message with any payload

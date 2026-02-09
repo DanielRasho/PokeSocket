@@ -1,16 +1,17 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect } from "vitest";
 import {
   CLIENT_MESSAGE_TYPE,
   CONNECT_REQUEST,
   CONNECT_SCHEMA,
-  createMessage,
+  MATCH_REQUEST,
+  MATCH_FOUND_SCHEMA,
+  QUEUE_JOINED_SCHEMA,
   SERVER_MESSAGE_TYPE,
   validateResponse,
   waitForMessage,
   WS_URL,
   WSTestClient,
 } from "../helpers";
-import { object, string, number, array, bool, Schema } from "yup";
 
 describe("Testing Basic connections", () => {
 
