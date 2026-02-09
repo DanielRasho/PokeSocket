@@ -21,4 +21,4 @@ processes:
       server:
         condition: process_log_ready
     availability:
-      exit_on_end: false
+      exit_on_end: true
