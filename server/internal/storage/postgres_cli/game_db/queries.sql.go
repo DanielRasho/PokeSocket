@@ -12,7 +12,7 @@ import (
 )
 
 const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users 
+DELETE FROM users
 WHERE id = $1
 `
 
@@ -21,15 +21,71 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getPokemonSpecies = `-- name: GetPokemonSpecies :one
+SELECT id, name, base_hp, base_attack, base_defense, base_speed, type1, type2
+FROM pokemon_species
+WHERE id = $1
+`
+
+type GetPokemonSpeciesRow struct {
+	ID          int32
+	Name        string
+	BaseHp      int32
+	BaseAttack  int32
+	BaseDefense int32
+	BaseSpeed   int32
+	Type1       string
+	Type2       pgtype.Text
+}
+
+func (q *Queries) GetPokemonSpecies(ctx context.Context, id int32) (GetPokemonSpeciesRow, error) {
+	row := q.db.QueryRow(ctx, getPokemonSpecies, id)
+	var i GetPokemonSpeciesRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.BaseHp,
+		&i.BaseAttack,
+		&i.BaseDefense,
+		&i.BaseSpeed,
+		&i.Type1,
+		&i.Type2,
+	)
+	return i, err
+}
+
 const insertUser = `-- name: InsertUser :one
-INSERT INTO users (username)
-VALUES ($1)
+INSERT INTO users (id, username, status)
+VALUES ($1, $2, 'connected')
 RETURNING id
 `
 
-func (q *Queries) InsertUser(ctx context.Context, username string) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, insertUser, username)
+type InsertUserParams struct {
+	ID       pgtype.UUID
+	Username string
+}
+
+func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertUser, arg.ID, arg.Username)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertUserTeamPokemon = `-- name: InsertUserTeamPokemon :exec
+INSERT INTO user_team (user_id, pokemon_species_id, position, current_hp, is_active, is_fainted)
+SELECT $1, $2, $3, ps.base_hp, false, false
+FROM pokemon_species ps
+WHERE ps.id = $2
+`
+
+type InsertUserTeamPokemonParams struct {
+	UserID           pgtype.UUID
+	PokemonSpeciesID pgtype.Int4
+	Position         int32
+}
+
+func (q *Queries) InsertUserTeamPokemon(ctx context.Context, arg InsertUserTeamPokemonParams) error {
+	_, err := q.db.Exec(ctx, insertUserTeamPokemon, arg.UserID, arg.PokemonSpeciesID, arg.Position)
+	return err
 }

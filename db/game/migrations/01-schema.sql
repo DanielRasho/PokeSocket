@@ -1,4 +1,3 @@
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE pokemon_species (
@@ -109,6 +108,8 @@ CREATE TABLE battle_results (
     duration_seconds INTEGER,
     completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_battles_status ON battles(status);

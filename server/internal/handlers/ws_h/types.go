@@ -70,6 +70,17 @@ func (h *Handler) RemoveConnection(playerID PlayerID) {
 		// Remove from matchmaking queue if they were waiting
 		h.MatchmakingService.RemoveFromQueue(playerID)
 
+		// Delete user from database (will CASCADE delete team)
+		ctx := context.Background()
+		err := h.UserService.DeleteUser(ctx, playerID)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("player_id", playerID.String()).
+				Str("username", conn.Username).
+				Msg("Failed to delete user from database")
+		}
+
 		conn.Close() // Properly close the connection
 		delete(h.Connections, playerID)
 		log.Debug().

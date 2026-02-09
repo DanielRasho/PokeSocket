@@ -5,6 +5,7 @@ import "github.com/rs/zerolog/log"
 type MatchFoundResponse struct {
 	OpponentID       string `json:"opponent_id"`
 	OpponentUsername string `json:"opponent_username"`
+	OpponentPokemon  []int  `json:"oponnent_pokemon"`
 }
 
 type QueueJoinedResponse struct {
