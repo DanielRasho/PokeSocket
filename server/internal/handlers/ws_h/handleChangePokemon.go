@@ -84,17 +84,22 @@ func (h *Handler) handleChangePokemon(conn *Connection, msg Message) {
 	// Determine which player is player1 and which is player2
 	var yourTeam, opponentTeam []PokemonInfo
 	var yourID, opponentPlayerID pgtype.UUID
+	var yourActivePos, opponentActivePos int32
 
 	if conn.PlayerID == battleState.Player1ID {
 		yourTeam = player1Team
 		opponentTeam = player2Team
 		yourID = battleState.Player1ID
 		opponentPlayerID = battleState.Player2ID
+		yourActivePos = battleState.Player1ActivePos
+		opponentActivePos = battleState.Player2ActivePos
 	} else {
 		yourTeam = player2Team
 		opponentTeam = player1Team
 		yourID = battleState.Player2ID
 		opponentPlayerID = battleState.Player1ID
+		yourActivePos = battleState.Player2ActivePos
+		opponentActivePos = battleState.Player1ActivePos
 	}
 
 	// Get opponent connection for username
@@ -112,14 +117,16 @@ func (h *Handler) handleChangePokemon(conn *Connection, msg Message) {
 		BattleID: battleState.BattleID.String(),
 		Message:  battleState.Message,
 		YourInfo: PlayerBattleInfo{
-			PlayerID: yourID.String(),
-			Username: conn.Username,
-			Team:     yourTeam,
+			PlayerID:      yourID.String(),
+			Username:      conn.Username,
+			Team:          yourTeam,
+			ActivePokemon: yourActivePos,
 		},
 		OpponentInfo: PlayerBattleInfo{
-			PlayerID: opponentPlayerID.String(),
-			Username: opponentConn.Username,
-			Team:     opponentTeam,
+			PlayerID:      opponentPlayerID.String(),
+			Username:      opponentConn.Username,
+			Team:          opponentTeam,
+			ActivePokemon: opponentActivePos,
 		},
 		BattleEnded: battleState.BattleEnded,
 	}
@@ -133,14 +140,16 @@ func (h *Handler) handleChangePokemon(conn *Connection, msg Message) {
 		BattleID: battleState.BattleID.String(),
 		Message:  battleState.Message,
 		YourInfo: PlayerBattleInfo{
-			PlayerID: opponentPlayerID.String(),
-			Username: opponentConn.Username,
-			Team:     opponentTeam,
+			PlayerID:      opponentPlayerID.String(),
+			Username:      opponentConn.Username,
+			Team:          opponentTeam,
+			ActivePokemon: opponentActivePos,
 		},
 		OpponentInfo: PlayerBattleInfo{
-			PlayerID: yourID.String(),
-			Username: conn.Username,
-			Team:     yourTeam,
+			PlayerID:      yourID.String(),
+			Username:      conn.Username,
+			Team:          yourTeam,
+			ActivePokemon: yourActivePos,
 		},
 		BattleEnded: battleState.BattleEnded,
 	}

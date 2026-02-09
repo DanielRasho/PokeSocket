@@ -98,14 +98,16 @@ type AttackRequest struct {
 
 // BattleStateResult contains the complete battle state after an action
 type BattleStateResult struct {
-	BattleID    pgtype.UUID
-	Message     string
-	Player1ID   pgtype.UUID
-	Player1Team []game_db.UserTeam
-	Player2ID   pgtype.UUID
-	Player2Team []game_db.UserTeam
-	BattleEnded bool
-	WinnerID    pgtype.UUID
+	BattleID         pgtype.UUID
+	Message          string
+	Player1ID        pgtype.UUID
+	Player1Team      []game_db.UserTeam
+	Player1ActivePos int32
+	Player2ID        pgtype.UUID
+	Player2Team      []game_db.UserTeam
+	Player2ActivePos int32
+	BattleEnded      bool
+	WinnerID         pgtype.UUID
 }
 
 // AttackPokemon processes a pokemon attack and returns the new battle state
@@ -202,6 +204,12 @@ func (s *BattleService) AttackPokemon(ctx context.Context, req AttackRequest) (*
 		log.Warn().Err(err).Msg("Failed to update battle turn")
 	}
 
+	// Re-read battle to get fresh active positions after potential auto-switch
+	updatedBattle, err := s.DBQueries.GetBattle(ctx, req.BattleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to re-read battle: %w", err)
+	}
+
 	// Get updated teams
 	player1Team, err := s.DBQueries.GetUserTeam(ctx, battle.Player1ID)
 	if err != nil {
@@ -233,14 +241,16 @@ func (s *BattleService) AttackPokemon(ctx context.Context, req AttackRequest) (*
 		Msg("Attack processed")
 
 	return &BattleStateResult{
-		BattleID:    req.BattleID,
-		Message:     message,
-		Player1ID:   battle.Player1ID,
-		Player1Team: player1Team,
-		Player2ID:   battle.Player2ID,
-		Player2Team: player2Team,
-		BattleEnded: battleEnded,
-		WinnerID:    winnerID,
+		BattleID:         req.BattleID,
+		Message:          message,
+		Player1ID:        battle.Player1ID,
+		Player1Team:      player1Team,
+		Player1ActivePos: updatedBattle.Player1ActivePokemonPosition.Int32,
+		Player2ID:        battle.Player2ID,
+		Player2Team:      player2Team,
+		Player2ActivePos: updatedBattle.Player2ActivePokemonPosition.Int32,
+		BattleEnded:      battleEnded,
+		WinnerID:         winnerID,
 	}, nil
 }
 
@@ -369,6 +379,12 @@ func (s *BattleService) SwitchPokemon(ctx context.Context, req SwitchPokemonRequ
 		log.Warn().Err(err).Msg("Failed to update battle turn")
 	}
 
+	// Re-read battle to get fresh active positions
+	updatedBattle, err := s.DBQueries.GetBattle(ctx, req.BattleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to re-read battle: %w", err)
+	}
+
 	// Get updated teams
 	player1Team, err := s.DBQueries.GetUserTeam(ctx, battle.Player1ID)
 	if err != nil {
@@ -381,7 +397,7 @@ func (s *BattleService) SwitchPokemon(ctx context.Context, req SwitchPokemonRequ
 	}
 
 	// Create message describing the action
-	message := fmt.Sprintf("Switched to %s (position %d)", targetPokemon.PokemonSpeciesID.Int32, req.NewPosition)
+	message := fmt.Sprintf("Switched to species %d (position %d)", targetPokemon.PokemonSpeciesID.Int32, req.NewPosition)
 
 	// Check if battle is over (shouldn't happen on switch, but check anyway)
 	battleEnded, winnerID := s.checkBattleEnd(player1Team, player2Team, battle.Player1ID, battle.Player2ID)
@@ -393,13 +409,15 @@ func (s *BattleService) SwitchPokemon(ctx context.Context, req SwitchPokemonRequ
 		Msg("Pokemon switched successfully")
 
 	return &BattleStateResult{
-		BattleID:    req.BattleID,
-		Message:     message,
-		Player1ID:   battle.Player1ID,
-		Player1Team: player1Team,
-		Player2ID:   battle.Player2ID,
-		Player2Team: player2Team,
-		BattleEnded: battleEnded,
-		WinnerID:    winnerID,
+		BattleID:         req.BattleID,
+		Message:          message,
+		Player1ID:        battle.Player1ID,
+		Player1Team:      player1Team,
+		Player1ActivePos: updatedBattle.Player1ActivePokemonPosition.Int32,
+		Player2ID:        battle.Player2ID,
+		Player2Team:      player2Team,
+		Player2ActivePos: updatedBattle.Player2ActivePokemonPosition.Int32,
+		BattleEnded:      battleEnded,
+		WinnerID:         winnerID,
 	}, nil
 }
