@@ -3,37 +3,33 @@
 //   sqlc v1.30.0
 // source: queries.sql
 
-package users_db
+package game_db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const hello = `-- name: hello :many
-SELECT id, name, email, created_at FROM users
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users 
+WHERE id = $1
 `
 
-func (q *Queries) hello(ctx context.Context) ([]User, error) {
-	rows, err := q.db.Query(ctx, hello)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Email,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
+const insertUser = `-- name: InsertUser :one
+INSERT INTO users (username)
+VALUES ($1)
+RETURNING id
+`
+
+func (q *Queries) InsertUser(ctx context.Context, username string) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertUser, username)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }

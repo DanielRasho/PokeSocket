@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package users_db
+package game_db
 
 import (
 	"context"

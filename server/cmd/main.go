@@ -8,7 +8,9 @@ import (
 	"github.com/DanielRasho/PokeSocket/internal/handlers/http_h"
 	"github.com/DanielRasho/PokeSocket/internal/handlers/ws_h"
 	poke_mw "github.com/DanielRasho/PokeSocket/internal/middlewares"
+	"github.com/DanielRasho/PokeSocket/internal/services/users_s"
 	"github.com/DanielRasho/PokeSocket/internal/storage/postgres_cli"
+	"github.com/DanielRasho/PokeSocket/internal/storage/postgres_cli/game_db"
 	"github.com/DanielRasho/PokeSocket/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -72,8 +74,15 @@ type api struct {
 
 func newAPI(dbCli *pgxpool.Pool) api {
 	validator := validator.New()
+	DbQueries := game_db.New(dbCli)
+
+	userService := users_s.UserService{
+		DBClient:  dbCli,
+		DBQueries: DbQueries,
+	}
+
 	return api{
 		checkHealth: http_h.GetHealth,
-		battle:      ws_h.NewHandler(dbCli, validator),
+		battle:      ws_h.NewHandler(dbCli, validator, &userService),
 	}
 }

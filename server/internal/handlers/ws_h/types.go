@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/DanielRasho/PokeSocket/internal/services/users_s"
 	"github.com/DanielRasho/PokeSocket/utils"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -21,24 +23,74 @@ type Message struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-type User struct {
-	Username string    `json:"username"`
-	Id       uuid.UUID `json:"uuid"`
-}
+type PlayerID = pgtype.UUID
 
 type Handler struct {
-	DBClient  *pgxpool.Pool
-	Validator validator.Validate
-	Sessions  map[uuid.UUID]User
+	DBClient    *pgxpool.Pool
+	Validator   validator.Validate
+	Connections map[PlayerID]*Connection
+	mu          sync.RWMutex // Protect concurrent access to Connections map
+	UserService *users_s.UserService
 }
 
-func NewHandler(dbClient *pgxpool.Pool, validator *validator.Validate) http.HandlerFunc {
+func NewHandler(
+	dbClient *pgxpool.Pool,
+	validator *validator.Validate,
+	userService *users_s.UserService) http.HandlerFunc {
 	h := Handler{
-		DBClient:  dbClient,
-		Validator: *validator,
-		Sessions:  make(map[uuid.UUID]User),
+		DBClient:    dbClient,
+		Validator:   *validator,
+		Connections: make(map[pgtype.UUID]*Connection),
+		UserService: userService,
 	}
 	return h.HandleRequest
+}
+
+// AddConnection safely adds a connection to the map
+func (h *Handler) AddConnection(conn *Connection) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.Connections[conn.PlayerID] = conn
+	log.Debug().
+		Str("player_id", conn.PlayerID.String()).
+		Str("username", conn.Username).
+		Msg("Connection added")
+}
+
+// RemoveConnection safely removes and cleans up a connection
+func (h *Handler) RemoveConnection(playerID PlayerID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if conn, exists := h.Connections[playerID]; exists {
+		conn.Close() // Properly close the connection
+		delete(h.Connections, playerID)
+		log.Debug().
+			Str("player_id", playerID.String()).
+			Str("username", conn.Username).
+			Msg("Connection removed")
+	}
+}
+
+// SendToPlayer sends a message via the buffered channel
+func (h *Handler) SendToPlayer(playerID PlayerID, message Message) error {
+	h.mu.RLock()
+	conn, exists := h.Connections[playerID]
+	h.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("player not connected")
+	}
+
+	select {
+	case conn.Send <- message:
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("timeout sending message")
+	default:
+		log.Warn().Str("player_id", playerID.String()).Msg("Send channel full, message dropped")
+		return fmt.Errorf("send channel full")
+	}
 }
 
 func (h *Handler) HandleRequest(w http.ResponseWriter, r *http.Request) {
@@ -66,77 +118,85 @@ func (h *Handler) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Register user
-	user, err := h.handleConnect(initialMsg, ctx, conn)
+	// Register connection
+	connection, err := h.handleConnect(initialMsg, ctx, conn)
 	if err != nil {
 		if verr, ok := err.(*utils.VerificationError); ok {
 			sendAndLogError(ctx, conn, err, initialMsg, utils.InvalidFields, verr.UserError)
+		} else {
+			sendAndLogError(ctx, conn, err, initialMsg, utils.InvalidFields,
+				map[string]string{"type": "Error creating user"})
 		}
-		sendAndLogError(ctx, conn, err, initialMsg, utils.InvalidFields,
-			map[string]string{"type": "Error creating user"})
 		return
 	}
 
-	// Now handle messages
-	h.processMessages(conn, ctx, user)
+	// Add connection to map
+	h.AddConnection(connection)
+
+	// IMPORTANT: Remove connection when this function exits
+	defer h.RemoveConnection(connection.PlayerID)
+
+	// Start background goroutines
+	go connection.writePump()
+	go connection.pingConnection()
+
+	// HANDLE OTHER MESSAGES (blocks until disconnect)
+	h.processMessages(connection)
 }
 
-func (h *Handler) processMessages(conn *websocket.Conn, ctx context.Context, user User) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go h.pingConnection(ctx, conn)
+func (h *Handler) processMessages(conn *Connection) {
+	defer func() {
+		log.Info().Str("username", conn.Username).Msg("Message processing stopped")
+	}()
 
 	for {
 		var msg Message
-
-		// Use wsjson.Read to read JSON messages
-		err := wsjson.Read(ctx, conn, &msg)
+		err := wsjson.Read(conn.Ctx, conn.Conn, &msg)
 		if err != nil {
 			// Check if it's a normal closure
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
-				log.Info().Str("username", user.Username).Msg("User closed connection normally")
+				log.Info().Str("username", conn.Username).Msg("User closed connection normally")
+			} else if conn.Ctx.Err() != nil {
+				log.Debug().Str("username", conn.Username).Msg("Context cancelled")
 			} else {
-				log.Err(err).Str("username", user.Username).Msg("User disconnected")
+				log.Err(err).Str("username", conn.Username).Msg("Error reading message")
 			}
 			return
 		}
 
+		// HANDLE MESSAGE - now using the channel instead of direct writes
 		switch msg.Type {
 		case CLIENT_MESSAGE_TYPE.Connect:
-			sendAndLogError(ctx, conn, fmt.Errorf("Already connected"), msg, utils.InvalidFields,
-				map[string]string{"type": "Already connected"})
+			conn.Send <- NewMessage(SERVER_MESSAGE_TYPE.Error, ErrorResponse{
+				Message: "Already connected",
+				Code:    utils.InvalidFields.StatusCode,
+				Details: map[string]string{"type": "Already connected"},
+			})
+
 		case CLIENT_MESSAGE_TYPE.Status:
+			conn.Send <- NewMessage(SERVER_MESSAGE_TYPE.Status, map[string]string{
+				"status":   "connected",
+				"username": conn.Username,
+			})
 
 		case CLIENT_MESSAGE_TYPE.Attack:
+			log.Debug().Str("username", conn.Username).Msg("Attack received")
+			// TODO: Handle attack
 
 		case CLIENT_MESSAGE_TYPE.ChangePokemon:
+			log.Debug().Str("username", conn.Username).Msg("Change Pokemon received")
+			// TODO: Handle pokemon change
 
 		case CLIENT_MESSAGE_TYPE.Surrender:
+			log.Debug().Str("username", conn.Username).Msg("Surrender received")
+			// TODO: Handle surrender
 
 		default:
-			sendAndLogError(ctx, conn, fmt.Errorf("Unknown message type"), msg, utils.InvalidFields,
-				map[string]string{"received_type": fmt.Sprint(msg.Type)})
-		}
-	}
-}
-
-// Check connection every 30 seconds, if connection does not answer close.
-func (h *Handler) pingConnection(ctx context.Context, conn *websocket.Conn) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			// Send a ping, if it fails, connection is dead
-			err := conn.Ping(ctx)
-			if err != nil {
-				log.Printf("Ping failed for user %v", err)
-				conn.Close(websocket.StatusAbnormalClosure, "Ping failed")
-				return
-			}
+			conn.Send <- NewMessage(SERVER_MESSAGE_TYPE.Error, ErrorResponse{
+				Message: "Unknown message type",
+				Code:    utils.InvalidFields.StatusCode,
+				Details: map[string]string{"received_type": fmt.Sprint(msg.Type)},
+			})
 		}
 	}
 }

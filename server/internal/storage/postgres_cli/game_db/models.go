@@ -2,15 +2,95 @@
 // versions:
 //   sqlc v1.30.0
 
-package users_db
+package game_db
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Battle struct {
+	ID                           pgtype.UUID
+	Player1ID                    pgtype.UUID
+	Player2ID                    pgtype.UUID
+	Status                       pgtype.Text
+	WinnerID                     pgtype.UUID
+	CurrentTurn                  pgtype.Int4
+	Player1ActivePokemonPosition pgtype.Int4
+	Player2ActivePokemonPosition pgtype.Int4
+	StartedAt                    pgtype.Timestamp
+	EndedAt                      pgtype.Timestamp
+}
+
+type BattlePokemon struct {
+	ID               int32
+	BattleID         pgtype.UUID
+	UserID           pgtype.UUID
+	PokemonSpeciesID pgtype.Int4
+	Position         int32
+	CurrentHp        int32
+	IsFainted        pgtype.Bool
+}
+
+type BattleResult struct {
+	ID              int32
+	BattleID        pgtype.UUID
+	WinnerID        pgtype.UUID
+	LoserID         pgtype.UUID
+	EndReason       pgtype.Text
+	TotalTurns      pgtype.Int4
+	DurationSeconds pgtype.Int4
+	CompletedAt     pgtype.Timestamp
+}
+
+type MatchmakingQueue struct {
+	ID       int32
+	UserID   pgtype.UUID
+	JoinedAt pgtype.Timestamp
+}
+
+type Move struct {
+	ID                int32
+	Name              string
+	Type              string
+	Power             int32
+	Accuracy          int32
+	Pp                int32
+	EffectDescription pgtype.Text
+	CreatedAt         pgtype.Timestamp
+}
+
+type PokemonMove struct {
+	PokemonSpeciesID int32
+	MoveID           int32
+}
+
+type PokemonSpecy struct {
+	ID          int32
+	Name        string
+	BaseHp      int32
+	BaseAttack  int32
+	BaseDefense int32
+	BaseSpeed   int32
+	Type1       string
+	Type2       pgtype.Text
+	SpriteUrl   pgtype.Text
+	CreatedAt   pgtype.Timestamp
+}
+
 type User struct {
-	ID        int32
-	Name      string
-	Email     string
-	CreatedAt pgtype.Timestamp
+	ID          pgtype.UUID
+	Username    string
+	ConnectedAt pgtype.Timestamp
+	LastSeen    pgtype.Timestamp
+	Status      pgtype.Text
+}
+
+type UserTeam struct {
+	ID               int32
+	UserID           pgtype.UUID
+	PokemonSpeciesID pgtype.Int4
+	Position         int32
+	CurrentHp        int32
+	IsActive         pgtype.Bool
+	IsFainted        pgtype.Bool
 }
