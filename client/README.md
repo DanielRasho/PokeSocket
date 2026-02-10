@@ -1,48 +1,30 @@
-# ./
+# Client
 
-This template should help get you started developing with Vue 3 in Vite.
+## Running the Dev Server
 
-## Recommended IDE Setup
+This project uses [Moon](https://moonrepo.dev/) as a monorepo task runner. From the repository root:
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-pnpm install
+```bash
+moon run client:dev
 ```
 
-### Compile and Hot-Reload for Development
+This starts the Vite dev server with hot-module replacement.
 
-```sh
-pnpm dev
-```
+## Architecture
 
-### Type-Check, Compile and Minify for Production
+The app has two views and a central Pinia store that owns the WebSocket connection.
 
-```sh
-pnpm build
-```
+- **HomeView** (`/`) — Register with a username, pick 3 Pokemon, and join the matchmaking queue. Redirects to battle once a match is found.
+- **BattleView** (`/battle`) — Real-time battle UI. Attack, switch Pokemon, and watch the battle unfold through a live log panel.
+- **wsStore** (`src/stores/wsStore.ts`) — Single Pinia store that manages the WebSocket lifecycle, sends/receives all messages, and exposes reactive battle state to both views.
 
-### Lint with [ESLint](https://eslint.org/)
+## Environment Variables
 
-```sh
-pnpm lint
-```
+Environment variables are managed through `.env` files and must be prefixed with `VITE_` to be exposed to the client.
+
+| Variable       | Description                          | Example                             |
+| -------------- | ------------------------------------ | ----------------------------------- |
+| `VITE_WS_URL`  | WebSocket URL of the backend server  | `ws://localhost:3003/battle`        |
+
+- `.env` — local development defaults (`ws://localhost:3003/battle`)
+- `.env.production` — production overrides (used during `pnpm build`)
